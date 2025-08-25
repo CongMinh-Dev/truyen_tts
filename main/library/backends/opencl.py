@@ -71,12 +71,20 @@ class STFT(torch.nn.Module):
         self.register_buffer("inverse_basis", inverse_basis.float())
         self.register_buffer("fft_window", fft_window.float())
 
-    def transform(self, input_data, eps):
+    def transform(self, input_data, eps, return_phase=False):
         input_data = F.pad(input_data, (self.pad_amount, self.pad_amount), mode="reflect")
         forward_transform = torch.matmul(self.forward_basis, input_data.unfold(1, self.filter_length, self.hop_length).permute(0, 2, 1))
         cutoff = int(self.filter_length / 2 + 1)
 
-        return torch.sqrt(forward_transform[:, :cutoff, :]**2 + forward_transform[:, cutoff:, :]**2 + eps)
+        real_part = forward_transform[:, :cutoff, :]
+        imag_part = forward_transform[:, cutoff:, :]
+        magnitude = torch.sqrt(real_part**2 + imag_part**2 + eps)
+
+        if return_phase:
+            phase = torch.atan2(imag_part.data, real_part.data)
+            return magnitude, phase
+
+        return magnitude
 
 class GRU(nn.RNNBase):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True, batch_first=True, dropout=0.0, bidirectional=False, device=None, dtype=None):
